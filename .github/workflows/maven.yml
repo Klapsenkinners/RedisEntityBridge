@@ -2,9 +2,9 @@ name: Build RedisEntityBridge 1.0.0
 
 on:
   push:
-    branches: [ "ver/1.0.0" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "ver/1.0.0" ]
+    branches: [ "master" ]
 
 jobs:
   build:
