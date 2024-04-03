@@ -23,4 +23,12 @@ jobs:
         with:
           name: RedisEntityBridge-1.0.0
           path: target/*SNAPSHOT.jar
+      - name: Release RedisEntityBridge
+        uses: marvinpinto/action-automatic-releases@master
+        with:
+          title: "RedisEntityBridge-1.0.0"
+          automatic_release_tag: "release-1.0.0"
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          files: "target/*SNAPSHOT.jar"
+          prerelease: false
       
