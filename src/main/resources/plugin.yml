@@ -1,0 +1,23 @@
+name: RedisEntityBridge
+author: T14D3
+version: '${project.version}'
+main: de.t14d3.redisentitybridge.RedisEntityBridge
+api-version: '1.20'
+commands:
+  redisentitybridge:
+    description: Main Command
+    usage: /redisentitybridge <subcommand>
+    aliases: [reb]
+permissions:
+  redisentitybridge.send:
+    description: Allows the player to use the /redisentitybridge send command
+    default: op
+  redisentitybridge.test:
+    description: Allows the player to use the /redisentitybridge test command
+    default: op
+  redisentitybridge.reload:
+    description: Allows the player to use the /redisentitybridge reload command
+    default: op
+  redisentitybridge.arrival:
+    description: Allows the player to use the /redisentitybridge arrival command
+    default: op

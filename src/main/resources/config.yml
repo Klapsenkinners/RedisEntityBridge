@@ -1,0 +1,31 @@
+#RedisEntityBridge Configuration
+
+# What name should the local instance respond to?
+localName: Main
+
+# What name should we send to?
+remoteName: Destination
+
+# Redis credentials
+redis:
+  host: "localhost"
+  port: "6379"
+  password: "changeme!"
+
+
+# Location where entities sent to this server should arrive at
+arrivalPosition:
+  world: "world"
+  x: 0.0
+  y: 64.0
+  z: 0.0
+
+# Cuboid area that sends any entities that move into it to the defined remote server
+portalArea:
+  world: "world"
+  x1: 0.0
+  y1: 64.0
+  z1: 0.0
+  x2: 10.0
+  y2: 70.0
+  z2: 10.0
