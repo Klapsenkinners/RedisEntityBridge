@@ -31,5 +31,5 @@ jobs:
         with:
           files: |
             target/*.jar
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v1.0.0  # Replace with your desired tag name
