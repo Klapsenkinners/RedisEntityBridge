@@ -18,13 +18,9 @@ jobs:
           distribution: 'temurin'
       - name: Build with Maven
         run: mvn -B package --file pom.xml
-
-  post:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
         with:
           name: RedisEntityBridge-1.0.0
           path: target/*SNAPSHOT.jar
+      
