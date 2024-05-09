@@ -22,7 +22,7 @@ public final class RedisEntityBridge extends JavaPlugin {
     private String redisHost;
     private int redisPort;
     private String redisPassword;
-    private String localName;
+    private String serverName;
     private String targetName;
     private Location portalAreaPos1;
     private Location portalAreaPos2;
@@ -33,7 +33,7 @@ public final class RedisEntityBridge extends JavaPlugin {
         loadConfigurations();
         registerEvents();
         registerCommand();
-        redisListener();
+        startListeningForNBTData();
         getLogger().info("Plugin enabled.");
     }
 
@@ -42,14 +42,14 @@ public final class RedisEntityBridge extends JavaPlugin {
         redisHost = getConfig().getString("redis.host");
         redisPort = Integer.parseInt(getConfig().getString("redis.port"));
         redisPassword = getConfig().getString("redis.password");
-        localName = getConfig().getString("localName");
+        serverName = getConfig().getString("localName");
         targetName = getConfig().getString("remoteName");
-        portalAreaPos1 = loadLocations("portalArea.x1", "portalArea.y1", "portalArea.z1", "portalArea.world");
-        portalAreaPos2 = loadLocations("portalArea.x2", "portalArea.y2", "portalArea.z2", "portalArea.world");
-        arrivalLocation = loadLocations("arrivalPosition.x", "arrivalPosition.y", "arrivalPosition.z", "arrivalPosition.world");
+        portalAreaPos1 = loadLocationFromConfig("portalArea.x1", "portalArea.y1", "portalArea.z1", "portalArea.world");
+        portalAreaPos2 = loadLocationFromConfig("portalArea.x2", "portalArea.y2", "portalArea.z2", "portalArea.world");
+        arrivalLocation = loadLocationFromConfig("arrivalPosition.x", "arrivalPosition.y", "arrivalPosition.z", "arrivalPosition.world");
     }
 
-    private Location loadLocations(String xPath, String yPath, String zPath, String worldPath) {
+    private Location loadLocationFromConfig(String xPath, String yPath, String zPath, String worldPath) {
         return new Location(
                 Bukkit.getWorld(getConfig().getString(worldPath)),
                 getConfig().getDouble(xPath),
@@ -79,11 +79,11 @@ public final class RedisEntityBridge extends JavaPlugin {
 
     public void sendEntityData(Entity entity, String targetServer) {
         NBTEntity nbtEntity = new NBTEntity(entity);
-        String nbtData = nbtEntity.toString(); // Read entity NBT
-        nbtData = stripData(nbtData); // Remove UUID/POS/etc NBT from string
-        String dataToSend = targetServer + "|" + entity.getType().name() + "|" + nbtData; // Bundle with target and entityType
-        sendNBTDataToRedis(dataToSend); // Send
-        entity.remove(); // Remove original entity
+        String nbtData = nbtEntity.toString();
+        nbtData = stripLocationData(nbtData);
+        String dataToSend = targetServer + "|" + entity.getType().name() + "|" + nbtData;
+        sendNBTDataToRedis(dataToSend);
+        entity.remove();
     }
     public void sendEntityData(Entity entity) {
         sendEntityData(entity, targetName);
@@ -101,7 +101,7 @@ public final class RedisEntityBridge extends JavaPlugin {
         }
     }
 
-    private String stripData(String nbtData) {
+    private String stripLocationData(String nbtData) {
         nbtData = nbtData.replaceAll(",Pos:\\[.+d,.+d,.+d\\]", "");
         nbtData = nbtData.replaceAll(",Rotation:\\[.+f,.+f\\]", "");
         nbtData = nbtData.replaceAll(",WorldUUIDLeast:.\\d+L", "");
@@ -121,19 +121,16 @@ public final class RedisEntityBridge extends JavaPlugin {
         }
     }
 
-    private void redisListener() {
-        // Async redis listener
+    private void startListeningForNBTData() {
         new Thread(() -> {
-            // Redis connection/auth
             try (Jedis jedis = new Jedis(redisHost, redisPort)) {
                 if (redisPassword != null && !redisPassword.isEmpty()) {
                     jedis.auth(redisPassword);
                 }
-                // Subscribe to redis channel
                 jedis.subscribe(new JedisPubSub() {
                     @Override
                     public void onMessage(String channel, String message) {
-                        processInputStream(message);
+                        handleNBTDataMessage(message);
                     }
                 }, "entity_nbt");
             } catch (Exception e) {
@@ -142,44 +139,43 @@ public final class RedisEntityBridge extends JavaPlugin {
         }).start();
     }
 
-    private void processInputStream(String message) {
+    private void handleNBTDataMessage(String message) {
         int firstPipeIndex = message.indexOf('|');
         if (firstPipeIndex >= 0) {
             String serverNamePart = message.substring(0, firstPipeIndex);
-            // Check if stream is meant for us
-            if (serverNamePart.equals(localName)) {
-                String data = message.substring(firstPipeIndex + 1);
-                int secondPipeIndex = data.indexOf('|');
-                if (secondPipeIndex >= 0) {
-                    // Extract entity type
-                    String entityTypeString = data.substring(0, secondPipeIndex);
-                    EntityType entityType = EntityType.valueOf(entityTypeString);
-                    // Extract NBT
-                    String nbtData = data.substring(secondPipeIndex + 1);
-
-                    createEntity(entityType, nbtData);
-                } else {
-                    getLogger().warning("Invalid message format. Expected at least 2 parts separated by '|'.");
-                }
-
+            if (serverNamePart.equals(serverName)) {
+                processNBTData(message.substring(firstPipeIndex + 1));
             }
         }
     }
 
-    private void createEntity(EntityType entityType, String nbtData) {
-        Bukkit.getScheduler().runTask(this, () -> {
+    private void processNBTData(String data) {
+        int secondPipeIndex = data.indexOf('|');
+        if (secondPipeIndex >= 0) {
+            String entityTypeString = data.substring(0, secondPipeIndex);
+            String nbtData = data.substring(secondPipeIndex + 1);
+            EntityType entityType = EntityType.valueOf(entityTypeString);
+            spawnEntityWithNBTData(entityType, nbtData);
+        } else {
+            getLogger().warning("Invalid message format. Expected at least 2 parts separated by '|'.");
+        }
+    }
 
-            try {
-                // Spawn Entity
-                Entity entity = arrivalLocation.getWorld().spawnEntity(arrivalLocation, entityType);
-                // Apply NBT
-                NBTEntity nbtEntity = new NBTEntity(entity);
-                NBTContainer nbtContainer = new NBTContainer(nbtData);
-                nbtEntity.mergeCompound(nbtContainer);
-            }
-            catch (Exception ignored) {}
+    private void spawnEntityWithNBTData(EntityType entityType, String nbtData) {
+        Bukkit.getScheduler().runTask(this, () -> {
+            Entity entity = arrivalLocation.getWorld().spawnEntity(arrivalLocation, entityType);
+            applyNBTDataToEntity(entity, nbtData);
         });
     }
+
+    private void applyNBTDataToEntity(Entity entity, String nbtData) {
+        NBTEntity nbtEntity = new NBTEntity(entity);
+        NBTContainer nbtContainer = new NBTContainer(nbtData);
+        nbtEntity.mergeCompound(nbtContainer);
+    }
+
+
+
 
 
     public Location getPortalAreaPos1() {
